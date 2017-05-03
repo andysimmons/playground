@@ -27,6 +27,7 @@ param (
     [object[]] $Collection,
 
     [scriptblock[]] $LoopLogic = @(
+        { $Collection.ForEach({ $_ }) }
         { $Collection | .{ process { $_ } } }, 
         { $Collection | ForEach-Object { $_ } },
         { ForEach-Object -InputObject $Collection { $_ } },
