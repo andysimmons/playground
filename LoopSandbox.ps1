@@ -82,7 +82,7 @@ class LoopRunner
     
     hidden [double] getItemsPerSecond ([int] $Precision)
     {
-        if ($this.ItemCount -and $this.ProcessingTime.TotalSeconds)
+        if (($this.ItemCount -gt 0) -and ($this.ProcessingTime -gt 0))
         {
             return [math]::Round(($this.ItemCount / $this.ProcessingTime.TotalSeconds), $Precision)
         }
@@ -91,9 +91,7 @@ class LoopRunner
 }
 #endregion Classes
 
-
 #region Functions
-
 <#
 .SYNOPSIS
     Eats a collection of [LoopRunner] objects and spits back a report.
@@ -127,12 +125,12 @@ function Get-LoopRunnerView
 
     end
     {
-        # Pick the fastest method, and set the relative speed on each element
+        # Pick the fastest method, and set the relative speed on each element before returning
         $baseline = ($loopView | Measure-Object -Property 'ItemsPerSecond' -Maximum).Maximum
 
         foreach ($element in $loopView)
         {
-            # temsPerSecond of -1 means the LoopRunner hasn't been invoked
+            # ItemsPerSecond of -1 means the LoopRunner hasn't been invoked
             if ($element.ItemsPerSecond -ne -1)
             {
                 $element.RelativeSpeed = ($element.ItemsPerSecond / $baseline).ToString("#.#%")
@@ -144,12 +142,10 @@ function Get-LoopRunnerView
 }
 #endregion Functions
 
-
-#region Main
-
-# Instantiate a bunch of LoopRunners and invoke them all against our collection
+# Instantiate a bunch of LoopRunners
 $loopRunners = [LoopRunner[]] $LoopLogic
 
+# Invoke them all with a progress bar
 for ($i = 0; $i -lt $loopRunners.Length; $i++) 
 {
     $writeProgressParams = @{
@@ -166,4 +162,3 @@ for ($i = 0; $i -lt $loopRunners.Length; $i++)
 Write-Progress -Activity  $writeProgressParams['Activity'] -Completed
 
 $loopRunners | Get-LoopRunnerView | Format-Table -AutoSize
-#endregion Main
