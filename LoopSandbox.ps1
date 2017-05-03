@@ -1,6 +1,28 @@
+<#
+.NOTES
+     Created on:   5/3/2016
+     Created by:   Andy Simmons
+     Organization: St. Luke's Health System
+     Filename:     LoopSandbox.ps1
+
+.SYNOPSIS    
+    Tests loop performance.
+
+.DESCRIPTION
+    Invokes various types of loop logic against a collection, and
+    reports the results.
+
+.PARAMETER Collection
+    Collection to test against.
+
+.PARAMETER LoopLogic
+    One or more scriptblocks of loop logic.
+#>
 #requires -version 5.0
+using namespace System.Collections
+
 [CmdletBinding()]
-param(
+param (
     [Parameter(Mandatory)]
     [object[]] $Collection,
 
@@ -12,7 +34,7 @@ param(
     )
 )
 
-# Invokes loops and watches performance.
+#region Classes
 class LoopRunner 
 {
     # Properties
@@ -22,12 +44,7 @@ class LoopRunner
     [double]      $ItemsPerSecond
     [array]       $Result
     
-    # Constructors
-    LoopRunner()
-    { 
-        $this.Initialize({}) 
-    }
-    
+    # Constructor
     LoopRunner([scriptblock] $ScriptBlock) 
     { 
         $this.Initialize($ScriptBlock) 
@@ -39,12 +56,11 @@ class LoopRunner
         $this.ResetCounters()
         $this.ScriptBlock = $ScriptBlock
     }
-
+    
     [void] Invoke () 
     {
-        $this.ResetCounters()
-        
         # Invoke the scriptblock and capture interesting metrics
+        $this.ResetCounters()
         $this.ProcessingTime = Measure-Command -Expression { $this.Result = $this.ScriptBlock.Invoke() }
         $this.ItemCount      = $this.Result.Length
         $this.ItemsPerSecond = $this.getItemsPerSecond(0)
@@ -57,16 +73,6 @@ class LoopRunner
         $this.ItemsPerSecond = -1
         $this.Result         = @()
     }
-
-    [string] GetRelativeSpeed ([double] $BaseLineItemsPerSec)
-    {
-        if ($this.ItemsPerSecond)
-        {
-            $relativeSpeed = $this.ItemsPerSecond / $BaseLineItemsPerSec
-            return $relativeSpeed.ToString("#%")
-        }
-        else { return "Unknown" }
-    }
     
     hidden [int] getItemCount ()
     {
@@ -74,7 +80,7 @@ class LoopRunner
         else              { return -1 }
     }
     
-    hidden [double] getItemsPerSecond ([int]$Precision)
+    hidden [double] getItemsPerSecond ([int] $Precision)
     {
         if ($this.ItemCount -and $this.ProcessingTime.TotalSeconds)
         {
@@ -83,16 +89,73 @@ class LoopRunner
         else { return -1 }
     }
 }
+#endregion Classes
 
-# Re-cast the scriptblocks as LoopRunners and invoke them all against our collection.
-$loopRunners = [LoopRunner[]]$LoopLogic
+
+#region Functions
+
+<#
+.SYNOPSIS
+    Eats a collection of [LoopRunner] objects and spits back a report.
+#>
+function Get-LoopRunnerView
+{
+    [CmdletBinding()]
+    param (
+        [Parameter(ValueFromPipeline)]
+        [LoopRunner[]] $InputObject
+    )
+
+    begin { [Collections.ArrayList] $loopView = @() }
+
+    process
+    {
+        foreach ($element in $InputObject)
+        {
+            # Build each element "view" and add it to the view collection
+            $elementView = [pscustomobject] @{
+                'ScriptBlock'    = $element.ScriptBlock
+                'RelativeSpeed'  = 'Unknown'
+                'ProcessingTime' = [math]::Round($element.ProcessingTime.TotalSeconds, 3) 
+                'CollectionSize' = $element.ItemCount
+                'ItemsPerSecond' = $element.ItemsPerSecond
+            }
+
+            $loopView.Add($elementView) > $null
+        }
+    }
+
+    end
+    {
+        # Pick the fastest method, and set the relative speed on each element
+        $baseline = ($loopView | Measure-Object -Property 'ItemsPerSecond' -Maximum).Maximum
+
+        foreach ($element in $loopView)
+        {
+            # temsPerSecond of -1 means the LoopRunner hasn't been invoked
+            if ($element.ItemsPerSecond -ne -1)
+            {
+                $element.RelativeSpeed = ($element.ItemsPerSecond / $baseline).ToString("#.#%")
+            }
+        }
+
+        $loopView | Sort-Object -Property 'ItemsPerSecond' -Descending
+    }
+}
+#endregion Functions
+
+
+#region Main
+
+# Instantiate a bunch of LoopRunners and invoke them all against our collection
+$loopRunners = [LoopRunner[]] $LoopLogic
 
 for ($i = 0; $i -lt $loopRunners.Length; $i++) 
 {
     $writeProgressParams = @{
-        Id       = 10
-        Activity = "Looping through $($Collection.Length) items"
-        Status   = "Method $i of $($loopRunners.Length): { $($loopRunners[$i].ScriptBlock) }"
+        Id              = 10
+        Activity        = "Looping through $($Collection.Length) items"
+        Status          = "Method $i of $($loopRunners.Length): { $($loopRunners[$i].ScriptBlock) }"
         PercentComplete = 100 * $i / $loopRunners.Length
     }
     Write-Progress @writeProgressParams
@@ -100,19 +163,7 @@ for ($i = 0; $i -lt $loopRunners.Length; $i++)
     $loopRunners[$i].Invoke()
 }
 
-# Summarize results
-$topSpeed = ($loopRunners | Measure-Object -Property 'ItemsPerSecond' -Maximum).Maximum
+Write-Progress -Activity  $writeProgressParams['Activity'] -Completed
 
-$loopRunners | Select-Object -Property ScriptBlock,
-                                        @{ 
-                                            n = 'ProcessingTime (sec)'
-                                            e = { [math]::Round($_.ProcessingTime.TotalSeconds, 3) }
-                                        }, 
-                                        ItemCount, 
-                                        ItemsPerSecond, 
-                                        @{
-                                            n = 'RelativeSpeed' 
-                                            e = { $_.GetRelativeSpeed($topSpeed) }
-                                        } | 
-    Sort-Object -Property 'ItemsPerSecond' -Descending | 
-    Format-Table -AutoSize
+$loopRunners | Get-LoopRunnerView | Format-Table -AutoSize
+#endregion Main
