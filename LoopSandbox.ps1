@@ -94,7 +94,7 @@ class LoopRunner
 #region Functions
 <#
 .SYNOPSIS
-    Eats a collection of [LoopRunner] objects and spits back a report.
+    Eats a collection of LoopRunner objects and spits back a report.
 #>
 function Get-LoopRunnerView
 {
