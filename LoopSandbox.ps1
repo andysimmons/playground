@@ -24,11 +24,11 @@ using namespace System.Collections
 [CmdletBinding()]
 param (
     [Parameter(Mandatory)]
-    [object[]] $Collection,
+    [array] $Collection,
 
     [scriptblock[]] $LoopLogic = @(
-        { $Collection.ForEach({ $_ }) }
         { $Collection | .{ process { $_ } } }, 
+        { $Collection.ForEach({ $_ }) },
         { $Collection | ForEach-Object { $_ } },
         { ForEach-Object -InputObject $Collection { $_ } },
         { foreach ($element in $Collection) { $element } }
@@ -40,11 +40,9 @@ class LoopRunner
 {
     # Properties
     [scriptblock] $ScriptBlock
-    [timespan]    $ProcessingTime
-    [int]         $ItemCount
-    [double]      $ItemsPerSecond
+    [int]         $Ticks
     [array]       $Result
-    
+
     # Constructor
     LoopRunner([scriptblock] $ScriptBlock) 
     { 
@@ -55,39 +53,24 @@ class LoopRunner
     [void] Initialize ([scriptblock] $ScriptBlock)
     {
         $this.ResetCounters()
-        $this.ScriptBlock = $ScriptBlock
+        $this.ScriptBlock = $ScriptBlock      
     }
     
     [void] Invoke () 
     {
-        # Invoke the scriptblock and capture interesting metrics
         $this.ResetCounters()
-        $this.ProcessingTime = Measure-Command -Expression { $this.Result = $this.ScriptBlock.Invoke() }
-        $this.ItemCount      = $this.Result.Length
-        $this.ItemsPerSecond = $this.getItemsPerSecond(0)
+        $this.Ticks = (Measure-Command -Expression { $this.Result = $this.ScriptBlock.Invoke() }).Ticks
     }
     
     [void] ResetCounters ()
     {
-        $this.ProcessingTime = -1
-        $this.ItemCount      = -1
-        $this.ItemsPerSecond = -1
-        $this.Result         = @()
+        $this.Ticks  = -1
+        $this.Result = @()
     }
-    
-    hidden [int] getItemCount ()
+
+    [bool] Validate ()
     {
-        if ($this.Result) { return $this.Result.Length }
-        else              { return -1 }
-    }
-    
-    hidden [double] getItemsPerSecond ([int] $Precision)
-    {
-        if (($this.ItemCount -gt 0) -and ($this.ProcessingTime -gt 0))
-        {
-            return [math]::Round(($this.ItemCount / $this.ProcessingTime.TotalSeconds), $Precision)
-        }
-        else { return -1 }
+        return (($this.Ticks -ne -1) -and ($this.Result))
     }
 }
 #endregion Classes
@@ -115,9 +98,10 @@ function Get-LoopRunnerView
             $elementView = [pscustomobject] @{
                 'ScriptBlock'    = $element.ScriptBlock
                 'RelativeSpeed'  = 'Unknown'
-                'ProcessingTime' = [math]::Round($element.ProcessingTime.TotalSeconds, 3) 
-                'CollectionSize' = $element.ItemCount
-                'ItemsPerSecond' = $element.ItemsPerSecond
+                'ItemsPerSecond' = -1
+                'Ticks'          = $element.Ticks 
+                'ItemsProcessed' = $element.Result.Length
+                '_IsValid'       = $element.Validate()
             }
 
             $loopView.Add($elementView) > $null
@@ -126,27 +110,27 @@ function Get-LoopRunnerView
 
     end
     {
-        # Pick the fastest method, and set the relative speed on each element before returning
-        $baseline = ($loopView | Measure-Object -Property 'ItemsPerSecond' -Maximum).Maximum
+        # Pick the fastest method and calculate relative comparisons
+        $speedBaseline  = ($loopView | Measure-Object -Property 'Ticks' -Minimum).Minimum
 
         foreach ($element in $loopView)
         {
-            # ItemsPerSecond of -1 means the LoopRunner hasn't been invoked
-            if ($element.ItemsPerSecond -ne -1)
+            if ($element._IsValid -and $element.ItemsProcessed)
             {
-                $element.RelativeSpeed = ($element.ItemsPerSecond / $baseline).ToString("#.#%")
+                $secondsElapsed         = [timespan]::FromTicks($element.Ticks).TotalSeconds
+                $element.ItemsPerSecond = [math]::Round($element.ItemsProcessed / $secondsElapsed)
+                $element.RelativeSpeed  = ($speedBaseline / $element.Ticks).ToString("#.#%")
             }
         }
 
-        $loopView | Sort-Object -Property 'ItemsPerSecond' -Descending
+        $loopView | Select-Object -Property * -ExcludeProperty _* | Sort-Object -Property 'Ticks' 
     }
 }
 #endregion Functions
 
-# Instantiate a bunch of LoopRunners
 $loopRunners = [LoopRunner[]] $LoopLogic
 
-# Invoke them all with a progress bar
+# Invoke each loop runner with a progress bar
 for ($i = 0; $i -lt $loopRunners.Length; $i++) 
 {
     $writeProgressParams = @{
@@ -159,7 +143,7 @@ for ($i = 0; $i -lt $loopRunners.Length; $i++)
     
     $loopRunners[$i].Invoke()
 }
-
 Write-Progress -Activity  $writeProgressParams['Activity'] -Completed
 
-$loopRunners | Get-LoopRunnerView | Format-Table -AutoSize
+$loopView = $loopRunners | Get-LoopRunnerView
+$loopView | Format-Table -AutoSize
