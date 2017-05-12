@@ -8,7 +8,7 @@
     URL:     https://github.com/andysimmons/playground/blob/master/Get-ComputerUser.ps1
 
 .SYNOPSIS
-	Generates a list of active users on one or more computers.
+    Generates a list of active users on one or more computers.
 
 .DESCRIPTION
     This script pulls human user profiles from a Windows computer,
@@ -45,13 +45,13 @@ process
     {
         try
         {
-			Write-Verbose "Enumerating user profiles on $computer ..."
+            Write-Verbose "Enumerating user profiles on $computer ..."
 
-			$cimParams = @{
-				ComputerName = $computer
-				ClassName    = 'Win32_UserProfile'
-				ErrorAction  = 'Stop' 
-			}
+            $cimParams = @{
+                ComputerName = $computer
+                ClassName    = 'Win32_UserProfile'
+                ErrorAction  = 'Stop' 
+            }
             $userProfiles = (Get-CimInstance @cimParams).Where({ $_.LastUseTime -and (-not $_.Special) }) 
         }
         catch
