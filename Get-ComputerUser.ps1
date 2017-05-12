@@ -1,5 +1,3 @@
-#requires -Version 4.0
-#requires -Modules ActiveDirectory, CimCmdlets
 <#
 .NOTES
     Name:    Get-ComputerUser.ps1
@@ -19,8 +17,8 @@
     One or more computer names to query for user profile information.
 
 .PARAMETER ShowFullErrorDetail
-    Most errors are suppressed and replaced with a terse warning, by
-    default. This switch disables that suppression.
+    Shows full error detail. By default, most errors are suppressed and 
+    replaced with a more concise warning.
 
 .EXAMPLE 
     Get-ComputerUser.ps1 -ComputerName 'Computer1'
@@ -31,6 +29,10 @@
 
     Pull a list of users from computer1 and computer2.
 #>
+
+#requires -Version 4.0
+#requires -Modules ActiveDirectory, CimCmdlets
+
 [CmdletBinding()]
 param (
     [Parameter(ValueFromPipeline, Position = 0)]
