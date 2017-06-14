@@ -5,24 +5,20 @@
     Created by:   Andy Simmons
     Organization: St. Luke's Health System
     Filename:     Get-MailMessage.ps1
-
 .SYNOPSIS
     Tinkering around with a simple Exchange mail client to retrieve messages.
-
 .DESCRIPTION
     Requires the Exchange Web Services (EWS) API. Tested with v2.2.
-
 .PARAMETER EwsAssembly
     Path to the EWS DLL
-
 .PARAMETER Credentials
     Credentials used to connect to EWS
-
 .PARAMETER Mailbox
     Mail address associated with the mailbox (used for autodiscovery of Exchange server)
-
 .EXAMPLE
     Get-MailMessage -Mailbox 'joeschmoe@abc.tld'
+.LINK
+    https://github.com/andysimmons/playground/blob/master/Get-MailMessage.ps1
 #>
 function Get-MailMessage
 {
