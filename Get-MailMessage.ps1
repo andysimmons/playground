@@ -1,28 +1,28 @@
 #requires -Version 4
 <#
 .NOTES
-	Created on:   6/14/2016
-	Created by:   Andy Simmons
-	Organization: St. Luke's Health System
-	Filename:     Get-MailMessage.ps1
+    Created on:   6/14/2016
+    Created by:   Andy Simmons
+    Organization: St. Luke's Health System
+    Filename:     Get-MailMessage.ps1
 
 .SYNOPSIS
-	Tinkering around with a simple Exchange mail client to retrieve messages.
+    Tinkering around with a simple Exchange mail client to retrieve messages.
 
 .DESCRIPTION
-	Requires the Exchange Web Services (EWS) API. Tested with v2.2.
+    Requires the Exchange Web Services (EWS) API. Tested with v2.2.
 
 .PARAMETER EwsAssembly
-	Path to the EWS DLL
+    Path to the EWS DLL
 
 .PARAMETER Credentials
-	Credentials used to connect to EWS
+    Credentials used to connect to EWS
 
 .PARAMETER Mailbox
-	Mail address associated with the mailbox (used for autodiscovery of Exchange server)
+    Mail address associated with the mailbox (used for autodiscovery of Exchange server)
 
 .EXAMPLE
-	Get-MailMessage -Mailbox 'joeschmoe@abc.tld'
+    Get-MailMessage -Mailbox 'joeschmoe@abc.tld'
 #>
 function Get-MailMessage
 {
@@ -32,21 +32,21 @@ function Get-MailMessage
         [ValidateScript({Test-Path $_})]
         [string]
         $EwsAssembly = 'C:\Program Files\Microsoft\Exchange\Web Services\2.2\Microsoft.Exchange.WebServices.dll',
-		
+        
         [Net.NetworkCredential]
         $Credentials = [Net.CredentialCache]::DefaultNetworkCredentials,
-		
-		[Parameter(Mandatory, HelpMessage = 'Primary email address of the Exchange mailbox')]
+        
+        [Parameter(Mandatory, HelpMessage = 'Primary email address of the Exchange mailbox')]
         [Net.Mail.MailAddress]
         $Mailbox,
-		
+        
         [int]
         $ItemLimit = 5
     )
 
     # Load the EWS assembly and configure the service
     [void] [Reflection.Assembly]::LoadFile($EwsAssembly)
-	
+    
     $exchangeService = [Microsoft.Exchange.WebServices.Data.ExchangeService]::new()
     $exchangeService.Credentials = $Credentials
     $exchangeService.AutodiscoverUrl($Mailbox)
@@ -64,7 +64,7 @@ function Get-MailMessage
 
     Write-Verbose "Retrieving the $ItemLimit most recent messages for $Mailbox ..."
     $items = $inbox.FindItems($ItemLimit)
-	
+    
     foreach ($item in $items)
     {
         Write-Verbose "Toggling 'Read' status on item '$($item.Subject)'"
