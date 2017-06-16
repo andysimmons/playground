@@ -5,20 +5,36 @@
     Created by:   Andy Simmons
     Organization: St. Luke's Health System
     Filename:     Get-MailMessage.ps1
+
 .SYNOPSIS
     Tinkering around with a simple Exchange mail client to retrieve messages.
+
 .DESCRIPTION
+    Checks a mailbox for messages that match specific sender and subject
+    patterns, returns the delivery timestamp(s), and deletes those messages.
+
     Requires the Exchange Web Services (EWS) API. Tested with v2.2.
+
 .PARAMETER EwsAssembly
-    Path to the EWS DLL
+    Exchange Web Services API DLL path
+
 .PARAMETER Credentials
-    Credentials used to connect to EWS
+    Exchange mailbox credentials
+
 .PARAMETER Mailbox
     Mail address associated with the mailbox (used for autodiscovery of Exchange server)
+
+.PARAMETER ItemLimit
+    Maximum number of items to retrieve
+
+.PARAMETER SenderPattern
+    Regular expression describing eligible "From" email address(es)
+
+.PARAMETER SubjectPattern
+    Regular expression describing eligible "Subject" text
+
 .EXAMPLE
-    Get-MailMessage -Mailbox 'joeschmoe@abc.tld'
-.LINK
-    https://github.com/andysimmons/playground/blob/master/Get-MailMessage.ps1
+    Get-MailMessage -Mailbox 'joe@abc.tld'
 #>
 function Get-MailMessage
 {
@@ -37,12 +53,18 @@ function Get-MailMessage
         $Mailbox,
         
         [int]
-        $ItemLimit = 5
+        $ItemLimit = 5,
+
+        [regex]
+        $SenderPattern = 'sender@some\.tld',
+
+        [regex]
+        $SubjectPattern = 'something interesting'
     )
 
-    # Load the EWS assembly and configure the service
     [void] [Reflection.Assembly]::LoadFile($EwsAssembly)
     
+    # Configure the Exchange service via autodiscovery
     $exchangeService = [Microsoft.Exchange.WebServices.Data.ExchangeService]::new()
     $exchangeService.Credentials = $Credentials
     $exchangeService.AutodiscoverUrl($Mailbox)
@@ -56,7 +78,7 @@ function Get-MailMessage
     $desiredProps.RequestedBodyType = [Microsoft.Exchange.WebServices.Data.BodyType]::Text
 
     # Auto-resolve message update conflicts
-    $autoResolve = [Microsoft.Exchange.WebServices.Data.ConflictResolutionMode]::AutoResolve
+    $resolveConflicts = [Microsoft.Exchange.WebServices.Data.ConflictResolutionMode]::AutoResolve
 
     Write-Verbose "Retrieving the $ItemLimit most recent messages for $Mailbox ..."
     $items = $inbox.FindItems($ItemLimit)
@@ -67,6 +89,6 @@ function Get-MailMessage
 
         $item.Load($desiredProps)
         $item.IsRead = !$item.IsRead
-        $item.Update($autoResolve)
+        $item.Update($resolveConflicts)
     }
 }
