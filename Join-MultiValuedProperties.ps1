@@ -21,7 +21,8 @@ function Join-MultiValuedProperties
     (
         [Parameter(Mandatory, ValueFromPipeline)]
         [ValidateNotNullOrEmpty()]
-        [object[]] $InputObject,
+        [object[]]
+        $InputObject,
         
         [String] 
         $Delimiter = "`n"   
