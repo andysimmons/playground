@@ -17,45 +17,51 @@
 #>
 function Join-MultiValuedProperties
 {
-	param
-	(
-		[Parameter(Mandatory, ValueFromPipeline)]
-		[ValidateNotNullOrEmpty()]
-		[object[]] $InputObject,
+    param
+    (
+        [Parameter(Mandatory, ValueFromPipeline)]
+        [ValidateNotNullOrEmpty()]
+        [object[]] $InputObject,
         
-		[String] 
-		$Delimiter = "`n"   
-	)
+        [String] 
+        $Delimiter = "`n"   
+    )
   
-	process 
-	{
-		$InputObject | ForEach-Object {
+    process 
+    {
+        $InputObject | ForEach-Object {
 
-			$csvFriendlyObject = New-Object PSObject
+            $csvFriendlyObject = New-Object PSObject
 
-			# Loop through each property on the input object
-			foreach ($property in $_.PSObject.Properties)
-			{
+            # Loop through each property on the input object
+            foreach ($property in $_.PSObject.Properties)
+            {
                 $propName  = $property.Name
                 $propValue = $property.Value
 
-				# If it has a value, see if it's a collection, and if it is, join
-				# the elements together in a single string.
-				if ($propValue -and $propValue.GetType().GetInterface('ICollection'))
-				{
-					$propValue = $propValue -Join $Delimiter
-				}
+                # If it has a value, see if it's a collection, and if it is, join
+                # the elements together in a single string.
+                if ($propValue -and $propValue.GetType().GetInterface('ICollection'))
+                {
+                    $propValue = $propValue -Join $Delimiter
+                }
 
-				$addMemberParams = @{
-					InputObject = $csvFriendlyObject
-					MemberType  = 'NoteProperty'
-					Name        = $propName
-					Value       = $propValue
-				}
-				Add-Member @addMemberParams
-			}
+                $addMemberParams = @{
+                    InputObject = $csvFriendlyObject
+                    MemberType  = 'NoteProperty'
+                    Name        = $propName
+                    Value       = $propValue
+                }
+                Add-Member @addMemberParams
+            }
 
-			$csvFriendlyObject
-		}
-	}
+            $csvFriendlyObject
+        }
+    }
 }
+
+Add-PSSnapin Citrix.*
+
+$applications = ('ctxxaddc01','sltctxxaddc01') | .{ process { Get-BrokerApplication -AdminAddress $_ } }
+
+$applications | Join-MultiValuedProperties | Export-Csv -NoTypeInformation -Path 'c:\temp\xa76apps.csv'
