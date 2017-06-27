@@ -23,6 +23,9 @@
 
 .EXAMPLE
     Get-Service | ConvertTo-FlatObject | Export-Csv -NoTypeInformation -Path C:\services.csv
+
+    Pulls a list of local services, joins multi-valued properties (e.g. DependentServices,
+    ServicesDependedOn), and exports the information to a CSV file.
 #>
 function ConvertTo-FlatObject
 {
