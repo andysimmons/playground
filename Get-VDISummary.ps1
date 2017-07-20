@@ -10,41 +10,41 @@ param (
 #region Functions
 function Get-VDISummary
 {
-	[CmdletBinding()]
-	param 
-	(
-		[Parameter(Mandatory, ValueFromPipeline)]
-		[string[]]
-		$Users,
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(Mandatory, ValueFromPipeline)]
+        [string[]]
+        $Users,
 
-		[regex]
-		$RolePattern = 'CN=(MVCoder|OfficeStaff|RehabTherapist|DefaultVDI|(MV|McCall|Elmore)?(Nurse|Physician)|MSTI(Nurse|Pharmacist)|(EVS|Transport|Win7PM-SL[BT])-U)_GG_TM',
+        [regex]
+        $RolePattern = 'CN=(MVCoder|OfficeStaff|RehabTherapist|DefaultVDI|(MV|McCall|Elmore)?(Nurse|Physician)|MSTI(Nurse|Pharmacist)|(EVS|Transport|Win7PM-SL[BT])-U)_GG_TM',
         
-		[regex]
-		$DefaultRolePattern = 'CN=DefaultVDI_GG_TM',
+        [regex]
+        $DefaultRolePattern = 'CN=DefaultVDI_GG_TM',
 
-		[regex]
-		$SitePattern = 'CN=VDI-SL[BT]User_GG_CX',
+        [regex]
+        $SitePattern = 'CN=VDI-SL[BT]User_GG_CX',
     
-		[regex]
-		$SSOPattern  = 'CN=SSOUsers-U_GG_AP',
+        [regex]
+        $SSOPattern  = 'CN=SSOUsers-U_GG_AP',
     
-		[regex]
-		$CAGPattern  = 'CN=CAGAccess_GG_CX',
+        [regex]
+        $CAGPattern  = 'CN=CAGAccess_GG_CX',
 
         [regex]
         $AltUsernamePattern = '[\w]+_[a-zA-Z]+$'
-	)
+    )
     
-	process
-	{
+    process
+    {
 
         foreach ($user in $Users)
-		{	
+        {	
 
-			try
-			{
-				$adUser = (Get-ADUser -Identity $user -Properties MemberOf,Title,Department -ErrorAction Stop)
+            try
+            {
+                $adUser = (Get-ADUser -Identity $user -Properties MemberOf,Title,Department -ErrorAction Stop)
                 
                 # exclude non-primary user accounts
                 if ($adUser.SamAccountName -match $AltUsernamePattern)
@@ -56,90 +56,87 @@ function Get-VDISummary
                 {
                     $isPrimaryAccount = $true
                 }
-			}
-			catch 
-			{ 
-				$adUser = $null 
-				Write-Error 'Failed to pull membership for $user! Skipping.'
-			}
+            }
+            catch 
+            { 
+                $adUser = $null 
+                Write-Error 'Failed to pull membership for $user! Skipping.'
+            }
 
             # generate summary for primary user accounts
-			if ($adUser -and $isPrimaryAccount) 
-			{
-				# pull role groups
-				$roles = $adUser.MemberOf -match $RolePattern
-				$hasRole = [bool] $roles
-				$hasAssignedRole = ($roles.Count -eq 1) -and ($roles -notmatch $DefaultRolePattern)
+            if ($adUser -and $isPrimaryAccount) 
+            {
+                # pull role groups
+                $roles = $adUser.MemberOf -match $RolePattern
+                $hasRole = [bool] $roles
+                $hasAssignedRole = ($roles.Count -eq 1) -and ($roles -notmatch $DefaultRolePattern)
 
-				# check StoreFront site affinity (verify they're in exactly one group)
-				$sfSite = @($adUser.MemberOf -match $SitePattern)
-				if ($sfSite.Count -ne 1) 
-				{ 
-					$sfSite = "NONE" 
-				}
-				else 
-				{
+                # check StoreFront site affinity (verify they're in exactly one group)
+                $sfSite = @($adUser.MemberOf -match $SitePattern)
+                if ($sfSite.Count -ne 1) 
+                { 
+                    $sfSite = "NONE" 
+                }
+                else 
+                {
                     # Set the site to either "SLB" or "SLT" for clarity in the report (just grabs it from the group name)
-					$sfSite = $sfSite[0].Substring(7,3)
-				}
+                    $sfSite = $sfSite[0].Substring(7,3)
+                }
             
-				# infer basic VDI functionality
-				$hasVDI = (($sfSite -ne 'NONE') -and $hasRole)
+                # infer basic VDI functionality
+                $hasVDI = (($sfSite -ne 'NONE') -and $hasRole)
 
-				# check single sign on
-				$hasSSO = [bool] ($adUser.MemberOf -match $SSOPattern)
+                # check single sign on
+                $hasSSO = [bool] ($adUser.MemberOf -match $SSOPattern)
 
-				# check Citrix Acccess Gateway
-				$hasExternalAccess = [bool] ($adUser.MemberOf -match $CAGPattern)
+                # check Citrix Acccess Gateway
+                $hasExternalAccess = [bool] ($adUser.MemberOf -match $CAGPattern)
 
-				# Return a custom object describing the user and their VDI access
-				[pscustomobject] [ordered] @{
-					User              = $adUser.Name
-					SamAccountName    = $adUser.SamAccountName
+                # Return a custom object describing the user and their VDI access
+                [pscustomobject] [ordered] @{
+                    User              = $adUser.Name
+                    SamAccountName    = $adUser.SamAccountName
                     Title             = $adUser.Title
                     Department        = $adUser.Department
                     IsEnabled         = $adUser.Enabled
-					HasVDI            = $hasVDI
+                    HasVDI            = $hasVDI
                     PreferredSite     = $sfSite
-					HasAssignedRole   = $hasAssignedRole              
-					HasSSO            = $hasSSO
-					HasExternalAccess = $hasExternalAccess
-					RoleGroups        = $roles
-				}
-			}
+                    HasAssignedRole   = $hasAssignedRole              
+                    HasSSO            = $hasSSO
+                    HasExternalAccess = $hasExternalAccess
+                    RoleGroups        = $roles
+                }
+            }
         
             # include lookup failures in the report
-			elseif (!$adUser)
-			{
-				$errText = "AD_LOOKUP_ERR"
+            elseif (!$adUser)
+            {
+                $errText = "AD_LOOKUP_ERR"
 
-				[pscustomobject] [ordered] @{
-					User              = $user
-					SamAccountName    = $errText
+                [pscustomobject] [ordered] @{
+                    User              = $user
+                    SamAccountName    = $errText
                     IsEnabled         = $errText
-					HasVDI            = $errText
+                    HasVDI            = $errText
                     PreferredSite     = $errText
-					HasAssignedRole   = $errText
-					HasSSO            = $errText
-					HasExternalAccess = $errText
-					RoleGroups        = $errText
-				}
-			}
-		}
-	}
+                    HasAssignedRole   = $errText
+                    HasSSO            = $errText
+                    HasExternalAccess = $errText
+                    RoleGroups        = $errText
+                }
+            }
+        }
+    }
 }
 
 <#
 .SYNOPSIS
     Returns all users from a group (searching recursively)
-
 .PARAMETER GroupName
     Name of the AD group to search.
-
 .PARAMETER CurrDepth
     Don't use this when invoking. This tracks the current depth since this function
     calls itself to dive into nested groups.
-
 .PARAMETER MaxDepth
     Maximum recursion depth.
 #>
