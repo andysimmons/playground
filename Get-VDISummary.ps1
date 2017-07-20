@@ -1,106 +1,132 @@
+[CmdletBinding()]
 param (
+    [String]
+    $GroupName = 'IT_GG_TM',
+
     [IO.FileInfo]
     $ReportPath = "C:\temp\IT_VDISummary$(Get-Date -Format 'yyyy-MM-dd').csv"
 )
 
+#region Functions
 function Get-VDISummary
 {
-    [CmdletBinding()]
-    param 
-    (
-        [Parameter(Mandatory, ValueFromPipeline)]
-        [string[]]
-        $Users,
+	[CmdletBinding()]
+	param 
+	(
+		[Parameter(Mandatory, ValueFromPipeline)]
+		[string[]]
+		$Users,
 
-        [regex]
-        $RolePattern = 'CN=(MVCoder|OfficeStaff|RehabTherapist|DefaultVDI|(MV|McCall|Elmore)?(Nurse|Physician)|MSTI(Nurse|Pharmacist)|(EVS|Transport|Win7PM-SL[BT])-U)_GG_TM',
+		[regex]
+		$RolePattern = 'CN=(MVCoder|OfficeStaff|RehabTherapist|DefaultVDI|(MV|McCall|Elmore)?(Nurse|Physician)|MSTI(Nurse|Pharmacist)|(EVS|Transport|Win7PM-SL[BT])-U)_GG_TM',
         
-        [regex]
-        $DefaultRolePattern = 'CN=DefaultVDI_GG_TM',
+		[regex]
+		$DefaultRolePattern = 'CN=DefaultVDI_GG_TM',
+
+		[regex]
+		$SitePattern = 'CN=VDI-SL[BT]User_GG_CX',
+    
+		[regex]
+		$SSOPattern  = 'CN=SSOUsers-U_GG_AP',
+    
+		[regex]
+		$CAGPattern  = 'CN=CAGAccess_GG_CX',
 
         [regex]
-        $SitePattern = 'CN=VDI-SL[BT]User_GG_CX',
+        $AltUsernamePattern = '[\w]+_[a-zA-Z]+$'
+	)
     
-        [regex]
-        $SSOPattern  = 'CN=SSOUsers-U_GG_AP',
-    
-        [regex]
-        $CAGPattern  = 'CN=CAGAccess_GG_CX'
-    )
-    
-    process
-    {
+	process
+	{
 
         foreach ($user in $Users)
-        {		
-            try
-            {
-                $adUser = (Get-ADUser -Identity $user -Properties MemberOf -ErrorAction Stop)
-            }
-            catch 
-            { 
-                $adUser = $null 
-                Write-Error 'Failed to pull membership for $user! Skipping.'
-            }
+		{	
 
-            if ($adUser) 
-            {
-                # pull role groups
-                $roles = $adUser.MemberOf -match $RolePattern
-                $hasRole = [bool] $roles
-                $hasAssignedRole = ($roles.Count -eq 1) -and ($roles -notmatch $DefaultRolePattern)
-
-                # check StoreFront site affinity (verify they're in exactly one group)
-                $sfSite = @($adUser.MemberOf -match $SitePattern)
-                if ($sfSite.Count -ne 1) 
-                { 
-                    $sfSite = "NONE" 
-                }
-                else 
+			try
+			{
+				$adUser = (Get-ADUser -Identity $user -Properties MemberOf,Title,Department -ErrorAction Stop)
+                
+                # exclude non-primary user accounts
+                if ($adUser.SamAccountName -match $AltUsernamePattern)
                 {
+                    Write-Warning "Skipping '$($adUser.SamAccountName)' (appears to be an alternate user account)."
+                    $isPrimaryAccount = $false   
+                }
+                else
+                {
+                    $isPrimaryAccount = $true
+                }
+			}
+			catch 
+			{ 
+				$adUser = $null 
+				Write-Error 'Failed to pull membership for $user! Skipping.'
+			}
+
+            # generate summary for primary user accounts
+			if ($adUser -and $isPrimaryAccount) 
+			{
+				# pull role groups
+				$roles = $adUser.MemberOf -match $RolePattern
+				$hasRole = [bool] $roles
+				$hasAssignedRole = ($roles.Count -eq 1) -and ($roles -notmatch $DefaultRolePattern)
+
+				# check StoreFront site affinity (verify they're in exactly one group)
+				$sfSite = @($adUser.MemberOf -match $SitePattern)
+				if ($sfSite.Count -ne 1) 
+				{ 
+					$sfSite = "NONE" 
+				}
+				else 
+				{
                     # Set the site to either "SLB" or "SLT" for clarity in the report (just grabs it from the group name)
-                    $sfSite = $sfSite[0].Substring(7,3)
-                }
+					$sfSite = $sfSite[0].Substring(7,3)
+				}
             
-                # infer basic VDI functionality
-                $hasVDI = (($sfSite -ne 'NONE') -and $hasRole)
+				# infer basic VDI functionality
+				$hasVDI = (($sfSite -ne 'NONE') -and $hasRole)
 
-                # check single sign on
-                $hasSSO = [bool] ($adUser.MemberOf -match $SSOPattern)
+				# check single sign on
+				$hasSSO = [bool] ($adUser.MemberOf -match $SSOPattern)
 
-                # check Citrix Acccess Gateway
-                $hasExternalAccess = [bool] ($adUser.MemberOf -match $CAGPattern)
+				# check Citrix Acccess Gateway
+				$hasExternalAccess = [bool] ($adUser.MemberOf -match $CAGPattern)
 
-                # Return a custom object describing the user and their VDI access
-                [pscustomobject] [ordered] @{
-                    User              = $adUser.Name
-                    SamAccountName    = $adUser.SamAccountName
-                    HasVDI            = $hasVDI
+				# Return a custom object describing the user and their VDI access
+				[pscustomobject] [ordered] @{
+					User              = $adUser.Name
+					SamAccountName    = $adUser.SamAccountName
+                    Title             = $adUser.Title
+                    Department        = $adUser.Department
+                    IsEnabled         = $adUser.Enabled
+					HasVDI            = $hasVDI
                     PreferredSite     = $sfSite
-                    HasAssignedRole   = $hasAssignedRole              
-                    HasSSO            = $hasSSO
-                    HasExternalAccess = $hasExternalAccess
-                    RoleGroups        = $roles
-                }
-            }
+					HasAssignedRole   = $hasAssignedRole              
+					HasSSO            = $hasSSO
+					HasExternalAccess = $hasExternalAccess
+					RoleGroups        = $roles
+				}
+			}
         
-            else 
-            {
-                $errText = "AD_LOOKUP_ERR"
+            # include lookup failures in the report
+			elseif (!$adUser)
+			{
+				$errText = "AD_LOOKUP_ERR"
 
-                [pscustomobject] [ordered] @{
-                    User              = $user
-                    SamAccountName    = $errText
-                    HasVDI            = $errText
+				[pscustomobject] [ordered] @{
+					User              = $user
+					SamAccountName    = $errText
+                    IsEnabled         = $errText
+					HasVDI            = $errText
                     PreferredSite     = $errText
-                    HasAssignedRole   = $errText
-                    HasSSO            = $errText
-                    HasExternalAccess = $errText
-                    RoleGroups        = $errText
-                }
-            }
-        }
-    }
+					HasAssignedRole   = $errText
+					HasSSO            = $errText
+					HasExternalAccess = $errText
+					RoleGroups        = $errText
+				}
+			}
+		}
+	}
 }
 
 <#
@@ -205,8 +231,14 @@ function ConvertTo-FlatObject
         }
     }
 }
+#endregion Functions
 
-$itUsers = Get-RecursiveGroupUser -GroupName 'IT_GG_TM'
-$vdiSummary = $itUsers | Get-VDISummary | ConvertTo-FlatObject
-$vdiSummary | Export-Csv -Path $ReportPath -NoTypeInformation
+Write-Verbose "Retrieving nested membership for '$GroupName'."
+$users = Get-RecursiveGroupUser -GroupName $GroupName
+
+Write-Verbose "Retrieving VDI summary for $($users.Count) users ..."
+$vdiSummary = $users | Get-VDISummary 
+
+Write-Verbose "Exporting summary data to report file: $ReportPath"
+$vdiSummary | ConvertTo-FlatObject | Export-Csv -Path $ReportPath -NoTypeInformation
 Invoke-Item $ReportPath
