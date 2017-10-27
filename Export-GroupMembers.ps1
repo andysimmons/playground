@@ -1,16 +1,23 @@
+# requires -Version 4.0
+# requires -Modules ActiveDirectory
 <#
+.NOTES
+    Created on:   10/26/2017
+    Created by:   Andy Simmons
+    Organization: St. Luke's Health System
+    outFile:     Export-GroupMembers.ps1
+
 .SYNOPSIS
-    Exports membership from one or more AD groups to text files (one
-    per group) containing the SID of each member.
+    Exports membership from one or more AD groups to some CSV files.
 
 .PARAMETER GroupName
-    Name (SAM or Distinguished Name) of one or more AD groups
+    Name of one or more Active Directory groups.
 
 .PARAMETER ExportFolder
-    Directory containing files to be exported
+    Directory where export files will be created.
 
 .PARAMETER NoClobber
-    If used, existing export files will not be overwritten.
+    Don't overwrite export files if they already exist.
 
 .EXAMPLE
     .\Export-GroupMembers.ps1 -GroupName (Get-Content .\GG_Groups.txt) -Verbose
@@ -31,55 +38,85 @@ param (
 )
 
 Write-Verbose ("Looking up membership for {0} groups..." -f $GroupName.Count)
-$adGroups = $GroupName | Get-ADGroup -ErrorAction Continue -Properties 'Members'
+
+# Get-ADGroupMember can't deal with large groups, but we can work around it
+# with Get-ADGroup/Get-ADObject.
+$adGroups = @($GroupName | Get-ADGroup -ErrorAction Continue -Properties 'Members')
 if ($adGroups.Count -ne $GroupName.Count)
 {
-    $difference = $GroupJName.Count - $adGroups.Count
-    Write-Warning "AD lookup failed for $difference groups."
+    $difference = $GroupName.Count - $adGroups.Count
+    Write-Warning "Skipping export for $difference groups (member lookup error)!"
 }
 
-if (!$adGroups) { throw "AD lookup failed for all groups. Aborting." }
+if (!$adGroups) { throw "Member lookup failed for all groups. Aborting." }
 
-if (!$ExportFolder.Exists -and $PSCmdlet.ShouldProcess($ExportFolder.FullName, 'create directory')) {
-    Write-Verbose "Directory '$ExportFolder' not found. Creating."
-    try { New-Item -ItemType Directory -Path $ExportFolder -ErrorAction Stop > $null }
-    catch { throw "Couldn't create directory '$ExportFolder'." }
+# Validate the export directory
+if (!$ExportFolder.Exists -and $PSCmdlet.ShouldProcess($ExportFolder.FullName, 'create directory')) 
+{
+    try 
+    { 
+        Write-Verbose "Directory '$ExportFolder' not found. Creating."
+        New-Item -ItemType Directory -Path $ExportFolder -ErrorAction Stop > $null 
+    }
+    catch { throw "Couldn't create directory '$ExportFolder'. Bailing." }
 }
+
+Write-Verbose ("Exporting membership information for {0} groups" -f $adGroups.Count)
+
+$exportCounter = 0
 
 foreach ($adGroup in $adGroups)
 {
-
-    $isEmpty = ! [bool] $adGroup.Members 
-    $fileName = "{0}\{1}.txt" -f $ExportFolder.FullName, $adGroup.DistinguishedName
-    if ($PSCmdlet.ShouldProcess($fileName, 'Export Membership'))
+    $outFile = "{0}\{1}.csv" -f $ExportFolder.FullName, $adGroup.DistinguishedName
+    
+    if ($PSCmdlet.ShouldProcess($outFile, 'export membership to file'))
     {
-        $objectSIDs = ($adGroup.Members | Get-ADObject -Properties 'ObjectSID').ObjectSID.Value
-        if (!$objectSIDs)
+        # We just have DN strings describing members, and DNs change, so we'll grab the 
+        # corresponding AD objects to export a few other identifiers.
+        $adObjects = @($adGroup.Members | Get-ADObject -Properties 'ObjectSID' -ErrorAction Continue)
+        
+        if ($adObjects.Count -eq $adGroup.Members.Count) { $content = $adObjects }
+        else 
         {
-            if (!$isEmpty)
+            if ($adGroup.Members)
             {
-                Write-Warning "SID lookup failed - exporting Distinguished Names instead."
-                $content = $adGroup.Members
+                $difference = $adGroup.Members.Count - $adObjects.Count
+                Write-Warning "Member lookup failed for $difference member(s)! Exporting distinguished names only."
+            
+                # convert the strings to single-property objects, for consistency across exports
+                $content = $adGroup.Members.ForEach({ [pscustomobject] @{ 'DistinguishedName' = $_ } })
             }
-            else { $content = $null }
+            else 
+            {
+                Write-Warning "'$($adGroup.Name)' group has no members. Still generating an export file, but it'll be empty..." 
+                $content = $null 
+            }
         }
-        else { $content = $objectSIDs }
 
-        # We're already in a ShouldProcess code block, override whatif/confirm
-        if ($NoClobber -and [IOFileInfo]$fileName.Exists)
+        if ($NoClobber -and [IOFileInfo]$outFile.Exists)
         {
-            Write-Warning "Skipping file '$fileName' because it already exists."
+            Write-Warning "Skipping file '$outFile'. It's already there and I'm not supposed to clobber it."
         }
         else
         {
-            $content | Out-File -FilePath $fileName -NoClobber:$NoClobber -WhatIf:$false -Confirm:$false
+            try
+            {
+                $ecsvParams = @{
+                    Path              = $outFile
+                    NoTypeInformation = $true
+                    Confirm           = $false
+                    ErrorAction       = 'Stop'
+                }
+                $content | Export-Csv @ecsvParams
+                $exportCounter++
+               }
+            catch
+            {
+                Write-Error "Couldn't write to export file '$outFile'!"
+                Write-Error $_.Exception.Message
+            }
         }
     }
 }
 
-"Script completed! Any exported files can be found in: {0}" -f $ExportFolder.FullName
-
-"To get a list of object names rather than SIDs, use something like this:
-(Get-Content '" + 
-    $ExportFolder.FullName + "\<GroupDN>.txt'" + 
-    ').ForEach({[Security.Principal.Identifier]::new($_.Trim()).Translate([Security.Principal.NTAccount]).Value'
+"All done! {0} group exports can be found here: '{1}'" -f $exportCounter, $ExportFolder.FullName
