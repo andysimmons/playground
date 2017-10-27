@@ -5,7 +5,7 @@
     Created on:   10/26/2017
     Created by:   Andy Simmons
     Organization: St. Luke's Health System
-    outFile:     Export-GroupMembers.ps1
+    FileName:     Export-GroupMembers.ps1
 
 .SYNOPSIS
     Exports membership from one or more AD groups to some CSV files.
