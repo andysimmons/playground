@@ -28,10 +28,10 @@ param
 )
 
 # built-in share multipliers
-$cpuLow	 = 500
+$cpuLow  = 500
 $cpuNorm = 1000
 $cpuHigh = 2000
-$memLow	 = 5
+$memLow  = 5
 $memNorm = 10
 $memHigh = 20
 
