@@ -1,0 +1,79 @@
+{
+    "editor.fontFamily": "'Operator Mono', 'Dank Mono', Consolas, 'Courier New', monospace",
+    "workbench.iconTheme": "material-icon-theme",
+    "glassit.alpha": 245,
+    "editor.fontSize": 16,
+    "workbench.sideBar.location": "left",
+    "git.autofetch": true,
+    "editor.fontLigatures": true,
+    "editor.mouseWheelZoom": true,
+    "debug.console.fontFamily": "Hack",
+    "terminal.integrated.fontFamily": "Hack",
+    "workbench.colorTheme": "βui - Ayu Dark",
+    "editor.tokenColorCustomizations": {
+        "[βui - Ayu Dark]": {
+            // some tweasks for better PowerShell highlighting
+            "textMateRules": [
+                {
+                    "scope": "support.variable",
+                    "settings": {
+                        "foreground": "#e57373",
+                        "fontStyle": "italic"
+                    }
+                },
+                {
+                    "scope": "variable.other.readwrite",
+                    "settings": {
+                        "foreground": "#fff8e1",
+                        "fontStyle":""
+                    }
+                },
+                {
+                    "scope":"variable.parameter",
+                    "settings": {
+                        "foreground": "#e57373"
+                    }
+                },
+                {
+                    "scope":"variable.other",
+                    "settings": {
+                        // properties on a var
+                        "foreground": "#ffcc80",
+                        "fontStyle": ""
+                    }
+                },
+                {
+                    "scope":"constant.character.escape",
+                    "settings": {
+                        "foreground": "#b388ff"
+                    }
+                },
+                {
+                    "scope": "meta",
+                    "settings": {
+                        "fontStyle":"",
+                        "foreground": "#ffab40"
+                    }
+                },
+                {
+                    "scope": "punctuation.definition.string.begin",
+                    "settings": {
+                        "foreground": "#d4e157"
+                    }
+                },
+                {
+                    "scope": "punctuation.definition.string.end",
+                    "settings": {
+                        "foreground": "#d4e157"
+                    }
+                },
+                {
+                    "scope": "punctuation",
+                    "settings": {
+                        "foreground": "#9175FF"
+                    }
+                }
+            ]
+        }
+    }
+}
