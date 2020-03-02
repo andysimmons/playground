@@ -2,7 +2,7 @@
     "editor.fontFamily": "'Operator Mono', 'Dank Mono', Consolas, 'Courier New', monospace",
     "workbench.iconTheme": "material-icon-theme",
     "glassit.alpha": 245,
-    "editor.fontSize": 16,
+    "editor.fontSize": 14,
     "workbench.sideBar.location": "left",
     "git.autofetch": true,
     "editor.fontLigatures": true,
@@ -12,7 +12,6 @@
     "workbench.colorTheme": "βui - Ayu Dark",
     "editor.tokenColorCustomizations": {
         "[βui - Ayu Dark]": {
-            // some tweasks for better PowerShell highlighting
             "textMateRules": [
                 {
                     "scope": "support.variable",
@@ -37,7 +36,6 @@
                 {
                     "scope":"variable.other",
                     "settings": {
-                        // properties on a var
                         "foreground": "#ffcc80",
                         "fontStyle": ""
                     }
@@ -45,7 +43,7 @@
                 {
                     "scope":"constant.character.escape",
                     "settings": {
-                        "foreground": "#b388ff"
+                        "foreground": "#9175ff"
                     }
                 },
                 {
@@ -68,9 +66,15 @@
                     }
                 },
                 {
+                    "scope": "punctuation.definition.variable",
+                    "settings":{
+                        "fontStyle":""
+                    }
+                },
+                {
                     "scope": "punctuation",
                     "settings": {
-                        "foreground": "#9175FF"
+                        "foreground": "#9175ff"
                     }
                 }
             ]
