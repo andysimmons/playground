@@ -1,7 +1,5 @@
 {
-    "editor.fontFamily": "'Operator Mono', 'Dank Mono', Consolas, 'Courier New', monospace",
-    "workbench.iconTheme": "material-icon-theme",
-    "glassit.alpha": 245,
+    "editor.fontFamily": "Hack, 'Operator Mono', Dank Mono', Consolas, 'Courier New', monospace",
     "editor.fontSize": 14,
     "workbench.sideBar.location": "left",
     "git.autofetch": true,
@@ -9,7 +7,14 @@
     "editor.mouseWheelZoom": true,
     "debug.console.fontFamily": "Hack",
     "terminal.integrated.fontFamily": "Hack",
-    "workbench.colorTheme": "βui - Ayu Dark",
+    "bracket-pair-colorizer-2.colors": [
+        "#816044",
+        "#ceb78b",
+        "#eedaa9",
+        "#f9e5c6",
+        "#fff8e1"
+    ],
+    "workbench.colorTheme": "Material Theme Darker High Contrast",
     "editor.tokenColorCustomizations": {
         "[βui - Ayu Dark]": {
             "textMateRules": [
@@ -36,7 +41,7 @@
                 {
                     "scope":"variable.other",
                     "settings": {
-                        "foreground": "#ffcc80",
+                        "foreground": "#fff8e1",
                         "fontStyle": ""
                     }
                 },
@@ -50,7 +55,7 @@
                     "scope": "meta",
                     "settings": {
                         "fontStyle":"",
-                        "foreground": "#ffab40"
+                        "foreground": "#ff9d47"
                     }
                 },
                 {
@@ -73,9 +78,7 @@
                 },
                 {
                     "scope": "punctuation",
-                    "settings": {
-                        "foreground": "#9175ff"
-                    }
+                    "settings": { }
                 }
             ]
         }
