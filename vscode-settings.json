@@ -1,6 +1,6 @@
 {
-    "editor.fontFamily": "Hack, 'Operator Mono', Dank Mono', Consolas, 'Courier New', monospace",
-    "editor.fontSize": 14,
+    "editor.fontFamily": "Hack, 'Operator Mono', 'Dank Mono', Consolas, 'Courier New', monospace",
+    "editor.fontSize": 15,
     "workbench.sideBar.location": "left",
     "git.autofetch": true,
     "editor.fontLigatures": true,
@@ -14,7 +14,7 @@
         "#f9e5c6",
         "#fff8e1"
     ],
-    "workbench.colorTheme": "Material Theme Darker High Contrast",
+    "workbench.colorTheme": "βui - Ayu Dark",
     "editor.tokenColorCustomizations": {
         "[βui - Ayu Dark]": {
             "textMateRules": [
