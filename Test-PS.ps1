@@ -102,9 +102,10 @@ begin {
         }
     }
 
-    # test escape char highlighting
+    # testing string interpolation with escape characters, preference vars, and scopes
     if ($ProgressPreference -eq [ActionPreference]::SilentlyContinue) {
-        Write-Warning "`$ProgressPreference is $ProgressPreference. You won't see much."
+        $implication = "you won't see progress bars"
+        Write-Warning "`$ProgressPreference is '$ProgressPreference', meaning $local:implication."
     }
 }
 
