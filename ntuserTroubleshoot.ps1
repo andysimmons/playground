@@ -44,8 +44,12 @@ $summary = $fileInfo |
 
 # if any of these are missing, throw an exception
 if ($fileInfo.Where({-not $_.Exists})) {
-    throw [System.IO.FileNotFoundException] "$env:COMPUTERNAME has corrupt profile(s)!`n`n$summary"
+    # Nic just wants true/false for now
+    #throw [System.IO.FileNotFoundException] "$env:COMPUTERNAME has corrupt profile(s)!`n`n$summary"
+    Write-Verbose "$env:COMPUTERNAME has corrupt profile(s)!`n`n$summary"
+    $false
 }
 else {
     Write-Verbose "No (obviously) corrupt profiles found on $env:COMPUTERNAME. Hooray!`n`n$summary"
+    return $true
 }
