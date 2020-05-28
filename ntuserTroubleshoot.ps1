@@ -48,6 +48,7 @@ if ($fileInfo.Where({-not $_.Exists})) {
     #throw [System.IO.FileNotFoundException] "$env:COMPUTERNAME has corrupt profile(s)!`n`n$summary"
     Write-Verbose "$env:COMPUTERNAME has corrupt profile(s)!`n`n$summary"
     $false
+    $fileInfo.Where({ -not $_.Exists }).ForEach({ Write-Warning $_.FullName })
 }
 else {
     Write-Verbose "No (obviously) corrupt profiles found on $env:COMPUTERNAME. Hooray!`n`n$summary"
