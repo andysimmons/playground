@@ -6,51 +6,129 @@
 
 .SYNOPSIS
     Work in progress. Need a way to report on systems where any of the local user
-    profiles are missing NTUser.dat.
+    profiles are missing the user hive.
 
 .DESCRIPTION
-    Right now, this just throws an error if it detects a missing NTUser.dat.
+    Returns $true if every profile has a user hive (ntuser.dat), or $false if it is missing
+    for any profile.
 
 .PARAMETER CheckAll
-    This checks ALL local profiles (including the system and service profiles). I don't
+    This checks all local profiles (including the system and service profiles). I don't
     think this would be useful in production. Just dev.
+
+.PARAMETER Repair
+    Specifies whether the profiles should be "repaired". The profile root will be renamed and
+    the profile regkey will be deleted (after being exported to the renamed profile root).
 #>
 #Requires -RunAsAdministrator
-#Requires -Version 4
-[CmdletBinding()]
+#Requires -Version 5
+[CmdletBinding(SupportsShouldProcess)]
 param (
-    [switch] $CheckAll
+    [switch] $CheckAll,
+
+    [switch] $Repair
 )
 
-$regKey = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList'
+class ProfileInfo {
+    # properties
+    [Microsoft.Win32.RegistryKey] $ProfileKey
+    [IO.FileInfo]                 $UserHive
 
-if ($CheckAll) { 
-    # grab the root for all profiles (including system/service)
-    $profileRoot = (Get-ChildItem -Path $regKey).ForEach({ $_.GetValue('ProfileImagePath') })
-}
-else { 
-    # just grab the root for full profiles
-    $profileRoot = Get-ChildItem -Path $regKey | ForEach-Object {
-        if ($_.GetValue('FullProfile')) { $_.GetValue('ProfileImagePath') }
+    # constructors
+    ProfileInfo ([Microsoft.Win32.RegistryKey] $ProfileKey) {
+        $this.ProfileKey = $ProfileKey
+        $this.Refresh()
+    }
+
+    # methods
+    
+    # override ToString() to show profile root
+    [string] ToString() {
+        return $this.ProfileKey.GetValue('ProfileImagePath')
+    }
+
+    # refresh the state of the user hive
+    [ProfileInfo] Refresh () {
+        $this.UserHive = [IO.FileInfo] "$this\NTUSER.DAT"
+        return $this
+    }
+
+    # is there an NTUSER.DAT for this profile?
+    [bool] UserHiveExists() { return $this.UserHive.Exists }
+
+    # If we're missing the user hive, rename the profile directory and
+    # nuke the profile regkey. This is super quick and dirty... probably shouldn't
+    # reuse this class outside this specific script 
+    [void] Archive() {
+        if ($this.UserHiveExists()) { 
+            # don't touch it if the user hive is intact
+            Write-Warning "User hive found in $this. I'm not gonna archive that..."
+        }
+        else {
+            try {
+                # rename profile root directory
+                $oldPath = $this.ToString()
+                $newPath = "${oldPath}_corrupt_$(Get-Date -f 'yyyyMMdd-hhmmss')"
+                Rename-Item -Path $oldPath -NewName $newPath -ErrorAction Stop -Force
+                
+                # export profile regkey and then remove it (note:
+                # I'm not aware of a PS-native way to do this, so
+                # error handling is kludgy, but it's something...)
+                $exportPath = "$newPath\ProfileKey.reg"
+                reg export $this.ProfileKey $exportPath /y | Out-Null
+                if (-not (Test-Path -Path $exportPath)) {
+                    throw "Couldn't export profile registry key to '$exportPath'. " + 
+                        "'$oldPath' is now '$newPath'. Leaving '$($this.ProfileKey)' in place."
+                }
+                Remove-Item -Path $this.ProfileKey.PSPath -ErrorAction Stop -Force
+
+                Write-Verbose "'$oldPath' archived to '$newPath'."
+                Write-Verbose "User profile regkey exported to '$exportPath'."
+            }
+            catch {
+                Write-Error "Archive failed for '$this'!"
+                Write-Error $_.Exception.Message
+            }
+        }
     }
 }
 
-# grab file information about each NTUSER.DAT
-$fileInfo = $profileRoot.ForEach({ [IO.FileInfo] "$_\NTUSER.DAT" })
-$summary = $fileInfo | 
-    Sort-Object -Property Exists, FullName |
-    Select-Object -Property FullName, Exists | 
-    Out-String
+function Get-ProfileInfo {
+    [CmdletBinding()]
+    param ([switch] $CheckAll)
+    $parentKey = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList'
 
-# if any of these are missing, throw an exception
-if ($fileInfo.Where({-not $_.Exists})) {
-    # Nic just wants true/false for now
-    #throw [System.IO.FileNotFoundException] "$env:COMPUTERNAME has corrupt profile(s)!`n`n$summary"
-    Write-Verbose "$env:COMPUTERNAME has corrupt profile(s)!`n`n$summary"
+    if ($CheckAll) { 
+        # grab the all profiles (including system/service)
+        $profileKey = Get-ChildItem -Path $parentKey
+    }
+    else { 
+        # just grab full profiles
+        $profileKey = (Get-ChildItem -Path $parentKey).Where( { $_.GetValue('FullProfile') } )
+    }
+    
+    # return a collection of [ProfileInfo] objects
+    $profileKey.ForEach( { [ProfileInfo]::new($_) } )
+}
+
+# grab all the profiles
+$profileInfo = Get-ProfileInfo -CheckAll:$CheckAll
+
+# are any missing the user hive?
+$corruptProfile = $profileInfo.Where( { -not $_.UserHiveExists() })
+
+if ($corruptProfile) {
+    Write-Verbose "$env:COMPUTERNAME has corrupt profile(s)!"
     $false
-    $fileInfo.Where({ -not $_.Exists }).ForEach({ Write-Warning $_.FullName })
+
+    # archive corrupted profiles
+    if ($Repair) {
+        foreach ($p in $corruptProfile) {
+            if ($PSCmdlet.ShouldProcess($p, 'ARCHIVE')) { $p.Archive() }
+        }
+    }
 }
 else {
-    Write-Verbose "No (obviously) corrupt profiles found on $env:COMPUTERNAME. Hooray!`n`n$summary"
+    Write-Verbose "No (obviously) corrupt profiles found on $env:COMPUTERNAME. Hooray!"
     return $true
 }
