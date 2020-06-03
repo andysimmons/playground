@@ -23,6 +23,9 @@
 .PARAMETER SaveProfileKey
     Save each profile registry keys to its corresponding archived/renamed profile root directory. 
 
+.PARAMETER LogFile
+    Text file used to capture script output (PS transcript).
+
 .PARAMETER LogName
     Specifies which Windows event log should be written to regarding profile repair.
 
@@ -36,13 +39,17 @@
 #Requires -Version 5
 [CmdletBinding(SupportsShouldProcess)]
 param (
-    [switch] $CheckAll,
+    [switch]
+    $CheckAll,
 
-    [switch] $Repair,
+    [switch]
+    $Repair,
 
-    [switch] $SaveProfileKey,
+    [switch]
+    $SaveProfileKey,
 
-    [IO.FileInfo] $LogFile = "C:\logs\ntuserTroubleshoot.log",
+    [IO.FileInfo]
+    $LogFile = "C:\logs\ntuserTroubleshoot.log",
 
     [string]
     $LogName = 'Application',
@@ -55,6 +62,8 @@ param (
 )
 
 #region classes
+
+# need a custom class to add some remediation/logging capabilities
 class ProfileInfo {
     # properties
     [Microsoft.Win32.RegistryKey] $ProfileKey
@@ -192,8 +201,9 @@ function Register-LogSource {
 #endregion functions
 
 #region init
+
 # Going to override $WhatIfPreference for these cmdlets since
-# we always want logs..
+# we always want logs.
 try {
     # try creating the log directory if not already present
     if (-not $LogFile.Directory.Exists) {
@@ -239,6 +249,7 @@ if ($corruptProfile) {
                 # write to the Windows event log
                 try {
                     Register-LogSource -LogName $LogName -LogSource $LogSource
+
                     $weParams = @{
                         ComputerName = $env:COMPUTERNAME
                         LogName      = $LogName
@@ -248,7 +259,6 @@ if ($corruptProfile) {
                         Message      = $p.LogMessage -join "`n"
                         ErrorAction  = 'Stop'
                     }
-                    
                     Write-EventLog @weParams
                 }
                 catch {
