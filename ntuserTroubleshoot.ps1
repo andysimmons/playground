@@ -1,8 +1,9 @@
 <#
 .NOTES
-    Name:   ntuserTroubleshoot.ps1
-    Author: Andy Simmons
-    Date:   05/27/2020
+    Name:        ntuserTroubleshoot.ps1
+    Author:      Andy Simmons
+    Date:        05/27/2020
+    Last Update: 06/09/2020
 
 .SYNOPSIS
     Work in progress. Need a way to report on systems where any of the local user
@@ -21,7 +22,10 @@
     the profile regkey will be deleted (after being exported to the renamed profile root).
 
 .PARAMETER SaveProfileKey
-    Save each profile registry keys to its corresponding archived/renamed profile root directory. 
+    Save each profile registry keys to its corresponding archived/renamed profile root directory.
+    
+    NOTE: This will not save profile registry keys that refer to a non-existent profile directory.
+    Those will be destroyed. 
 
 .PARAMETER LogFile
     Text file used to capture script output (PS transcript).
@@ -92,6 +96,9 @@ class ProfileInfo {
     # is there an NTUSER.DAT for this profile?
     [bool] UserHiveExists() { return $this.UserHive.Exists }
 
+    # is there a profile directory for this regkey?
+    [bool] UserDirExists() { return $this.UserHive.Directory.Exists }
+
     # If we're missing the user hive, rename the profile directory and
     # nuke the profile regkey. This is super quick and dirty... probably shouldn't
     # reuse this class outside this specific script 
@@ -104,33 +111,38 @@ class ProfileInfo {
         }
         else {
             try {
-                # rename profile root directory
-                $oldPath = $this.ToString()
-                $newPath = "${oldPath}_corrupt_$(Get-Date -f 'yyyyMMdd-hhmmss')"
-                Rename-Item -Path $oldPath -NewName $newPath -ErrorAction Stop -Force
+                # rename profile root directory (if it exists)
+                if ($this.UserDirExists()) {
+                    $oldPath = $this.ToString()
+                    $newPath = "${oldPath}_corrupt_$(Get-Date -f 'yyyyMMdd-hhmmss')"
+                    Rename-Item -Path $oldPath -NewName $newPath -ErrorAction Stop -Force
                 
-                $logInfo = "'$oldPath' archived to '$newPath'."
-                $this.LogMessage += $logInfo
-                Write-Verbose $logInfo
+                    $logInfo = "'$oldPath' archived to '$newPath'."
+                    $this.LogMessage += $logInfo
+                    Write-Verbose $logInfo
 
-                # I'm not aware of a PS-native way to do export the .reg file, so
-                # error handling is kludgy here, but it's something...
-                if ($SaveProfileKey) { 
-                    $exportPath = "$newPath\ProfileKey.reg"
-                    reg export $this.ProfileKey $exportPath /y | Out-Null
-                    if (-not (Test-Path -Path $exportPath)) {
-                        $logInfo = "Couldn't export profile registry key to '$exportPath'. " + 
-                            "'$oldPath' is now '$newPath'. Leaving '$($this.ProfileKey)' in place."
-                        $this.LogMessage += $logInfo
-                        throw $logInfo
-                    }
-                    else {
-                        $logInfo = "User profile regkey exported to '$exportPath'."
-                        $this.LogMessage += $logInfo
-                        Write-Verbose $logInfo
+                    # I'm not aware of a PS-native way to do export the .reg file, so
+                    # error handling is kludgy here, but it's something...
+                    if ($SaveProfileKey) { 
+                        $exportPath = "$newPath\ProfileKey.reg"
+                        reg export $this.ProfileKey $exportPath /y | Out-Null
+                        if (-not (Test-Path -Path $exportPath)) {
+                            $logInfo = "Couldn't export profile regkey to '$exportPath'. '$oldPath' is now '$newPath'."
+                            $this.LogMessage += $logInfo
+                            throw $logInfo
+                        }
+                        else {
+                            $logInfo = "User profile regkey exported to '$exportPath'."
+                            $this.LogMessage += $logInfo
+                            Write-Verbose $logInfo
+                        }
                     }
                 }
+
                 Remove-Item -Path $this.ProfileKey.PSPath -ErrorAction Stop -Force
+                $logInfo = "Removed registry key: $($this.ProfileKey.PSPath)"
+                $this.LogMessage += $logInfo
+                Write-Verbose $logInfo
             }
             catch {
                 $logInfo = "Archive failed for '$this'!"
@@ -237,7 +249,14 @@ $profileInfo = Get-ProfileInfo -CheckAll:$CheckAll
 $corruptProfile = $profileInfo.Where( { -not $_.UserHiveExists() } )
 
 if ($corruptProfile) {
-    Write-Verbose "$env:COMPUTERNAME has corrupt profile(s)!"
+    Write-Warning "$env:COMPUTERNAME has corrupt profile(s)!"
+
+    $corruptProfile | Select-Object -Property @(
+        'ProfileKey'
+        'UserHive'
+        @{ Name = 'UserHiveExists'; Expression = { $_.UserHiveExists() } }
+        @{ Name = 'UserDirExists'; Expression = { $_.UserDirExists() } }
+    ) | Format-List | Out-String | Write-Warning
     $false
 
     # if invoked with -Repair, then archive corrupted profiles
