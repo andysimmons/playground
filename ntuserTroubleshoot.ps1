@@ -78,6 +78,18 @@ class ProfileInfo {
     ProfileInfo ([Microsoft.Win32.RegistryKey] $ProfileKey) {
         $this.ProfileKey = $ProfileKey
         $this.Refresh()
+        $line = '---------------------------------------------------------------------'
+        $this.LogMessage = @(
+            $line
+            "Profile Key: $($this.ProfileKey)"
+            "User Hive (File Path): $($this.UserHive)"
+            "Profile Directory Exists: $($this.UserDirExists())"
+            "User Hive Exists: $($this.UserHiveExists())"
+            $line
+            ''
+            'Log Detail:'
+            ''
+        )
     }
 
     # methods
@@ -138,8 +150,13 @@ class ProfileInfo {
                         }
                     }
                 }
+                else {
+                    $logInfo = "$($this.UserHive.Directory) is referenced by the profile key, but doesn't exist."
+                    $this.LogMessage += $logInfo
+                    Write-Verbose
+                }
 
-                Remove-Item -Path $this.ProfileKey.PSPath -ErrorAction Stop -Force
+                Remove-Item -Path $this.ProfileKey.PSPath -ErrorAction Stop -Force -Recurse -Confirm:$false
                 $logInfo = "Removed registry key: $($this.ProfileKey.PSPath)"
                 $this.LogMessage += $logInfo
                 Write-Verbose $logInfo
