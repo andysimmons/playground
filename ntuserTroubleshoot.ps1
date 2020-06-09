@@ -115,6 +115,8 @@ class ProfileInfo {
     # nuke the profile regkey. This is super quick and dirty... probably shouldn't
     # reuse this class outside this specific script 
     [void] Archive([bool] $SaveProfileKey) {
+        $this.Refresh() | Out-Null
+        
         if ($this.UserHiveExists()) { 
             # don't touch it if the user hive is intact
             $logInfo = "User hive found in $this. I'm not gonna archive that..."
