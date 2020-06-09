@@ -3,7 +3,7 @@
     Name:        ntuserTroubleshoot.ps1
     Author:      Andy Simmons
     Date:        05/27/2020
-    Last Update: 06/09/2020
+    Last Update: 06/09/2020 
 
 .SYNOPSIS
     Work in progress. Need a way to report on systems where any of the local user
