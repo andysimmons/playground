@@ -31,12 +31,15 @@
     Text file used to capture script output (PS transcript).
 
 .PARAMETER LogName
-    Specifies which Windows event log should be written to regarding profile repair.
+    Specifies which Windows event log should be written to.
 
 .PARAMETER LogSource
-    Specifies the log source used when writing to the Windows event log regarding profile repair.
+    Specifies the log source used when writing to the Windows event log.
 
-.PARAMETER EventId
+.PARAMETER SummaryEventId
+    Specifies the event ID used when writing to the Windows event log for discovery/summary information.
+
+.PARAMETER RepairEventId
     Specifies the event ID used when writing to the Windows event log regarding profile repair.
 #>
 #Requires -RunAsAdministrator
@@ -62,7 +65,10 @@ param (
     $LogSource = 'UserHiveTroubleshooter',
 
     [int]
-    $EventId = 6032
+    $SummaryEventId = 6031,
+
+    [int]
+    $RepairEventId = 6032
 )
 
 #region classes
@@ -78,7 +84,7 @@ class ProfileInfo {
     ProfileInfo ([Microsoft.Win32.RegistryKey] $ProfileKey) {
         $this.ProfileKey = $ProfileKey
         $this.Refresh()
-        $line = '---------------------------------------------------------------------'
+        $line = '-' * 80
         $this.LogMessage = @(
             $line
             "Profile Key: $($this.ProfileKey)"
@@ -116,7 +122,7 @@ class ProfileInfo {
     # reuse this class outside this specific script 
     [void] Archive([bool] $SaveProfileKey) {
         $this.Refresh() | Out-Null
-        
+
         if ($this.UserHiveExists()) { 
             # don't touch it if the user hive is intact
             $logInfo = "User hive found in $this. I'm not gonna archive that..."
@@ -264,8 +270,38 @@ catch {
 # grab all the profiles
 $profileInfo = Get-ProfileInfo -CheckAll:$CheckAll
 
-# are any missing the user hive?
-$corruptProfile = $profileInfo.Where( { -not $_.UserHiveExists() } )
+if ($profileInfo) {
+
+    # are any missing the user hive?
+    $corruptProfile = $profileInfo.Where( { -not $_.UserHiveExists() } )
+
+    # generate a summary for the Windows event log 
+    $profileSummary = "$($profileInfo.Count) user profiles currently listed in the registry ($($corruptProfile.Count) corrupt)."
+    $profileSummary += $profileInfo | Select-Object -Property @(
+        'ProfileKey'
+        'UserHive'
+        @{ Name = 'UserHiveExists'; Expression = { $_.UserHiveExists() } }
+        @{ Name = 'UserDirExists'; Expression = { $_.UserDirExists() } }
+    ) | Sort-Object -Property UserHiveExists,UserDirExists | Format-List | Out-String
+
+    Register-LogSource -LogName $LogName -LogSource $LogSource
+
+    # set the summary event entry type based on whether there are corrupt profiles
+    if ($corruptProfile) { $entryType = 'Warning' }
+    else                 { $entryType = 'Information' }
+
+    $weParams = @{
+        ComputerName = $env:COMPUTERNAME
+        LogName      = $LogName
+        Source       = $LogSource
+        EventId      = $SummaryEventId
+        EntryType    = $entryType
+        Message      = $profileSummary
+        ErrorAction  = 'Stop'
+    }
+    Write-EventLog @weParams
+    Write-Verbose "$LogSource wrote summary $($entryType.ToLower()) event $SummaryEventId to the $LogName log."
+}
 
 if ($corruptProfile) {
     Write-Warning "$env:COMPUTERNAME has corrupt profile(s)!"
@@ -286,13 +322,11 @@ if ($corruptProfile) {
 
                 # write to the Windows event log
                 try {
-                    Register-LogSource -LogName $LogName -LogSource $LogSource
-
                     $weParams = @{
                         ComputerName = $env:COMPUTERNAME
                         LogName      = $LogName
                         Source       = $LogSource
-                        EventId      = $EventId
+                        EventId      = $RepairEventId
                         EntryType    = 'Information'
                         Message      = $p.LogMessage -join "`n"
                         ErrorAction  = 'Stop'
